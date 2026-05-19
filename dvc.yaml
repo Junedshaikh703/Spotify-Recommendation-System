@@ -1,0 +1,24 @@
+stages:
+
+  data_cleaning:
+    cmd: python data_cleaning.py
+
+    deps:
+      - data/raw/Music Info.csv
+      - data/raw/User Listening History.csv
+      - data_cleaning.py
+
+    outs:
+      - data/cleaned/cleaned_data.csv
+
+
+  transform_data:
+    cmd: python content_based_filtering.py
+
+    deps:
+      - data/cleaned/cleaned_data.csv
+      - content_based_filtering.py
+
+    outs:
+      - data/transformed/transformed_data.npz
+      - artifacts/transformer.joblib

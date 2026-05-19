@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 import joblib
@@ -10,7 +11,13 @@ from data_cleaning import data_for_content_filtering
 from scipy.sparse import save_npz
 
 # Cleaned Data Path
-CLEANED_DATA_PATH = "data/cleaned_data.csv"
+CLEANED_DATA_PATH = "data/cleaned/cleaned_data.csv"
+
+# transformed data path
+TRANSFORMED_DATA_PATH = "data/transformed/transformed_data.npz"
+
+# transformer path
+TRANSFORMER_PATH = "artifacts/transformer.joblib"
 
 # cols to transform
 frequency_enode_cols = ['year']
@@ -36,6 +43,7 @@ def train_transformer(data):
     Saves:
     transformer.joblib: The trained ColumnTransformer object.
     """
+
     # transformer 
     transformer = ColumnTransformer(transformers=[
         ("frequency_encode", CountEncoder(normalize=True,return_df=True), frequency_enode_cols),
@@ -48,8 +56,11 @@ def train_transformer(data):
     # fit the transformer
     transformer.fit(data)
 
+    # create artifacts folder
+    os.makedirs("artifacts", exist_ok=True)
+
     # save the transformer
-    joblib.dump(transformer, "transformer.joblib")
+    joblib.dump(transformer, TRANSFORMER_PATH)
     
 
 def transform_data(data):
@@ -60,8 +71,9 @@ def transform_data(data):
     Returns:
         array-like: The transformed data.
     """
+
     # load the transformer
-    transformer = joblib.load("transformer.joblib")
+    transformer = joblib.load(TRANSFORMER_PATH)
     
     # transform the data
     transformed_data = transformer.transform(data)
@@ -80,6 +92,10 @@ def save_transformed_data(transformed_data,save_path):
     Returns:
     None
     """
+
+    # create transformed folder
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
     # save the transformed data
     save_npz(save_path, transformed_data)
 
@@ -93,6 +109,7 @@ def calculate_similarity_scores(input_vector, data):
     Returns:
         array-like: An array of similarity scores.
     """
+
     # calculate similarity scores
     similarity_scores = cosine_similarity(input_vector, data)
     
@@ -176,7 +193,10 @@ def test_recommendations(data_path, song_name, artist_name, k=10):
     transformed_data = transform_data(data_content_filtering)
 
     # save transformed data
-    save_transformed_data(transformed_data,"data/transformed_data.npz")
+    save_transformed_data(
+        transformed_data,
+        TRANSFORMED_DATA_PATH
+    )
 
     # filter out the song from data
     song_row = data.loc[
@@ -206,4 +226,9 @@ def test_recommendations(data_path, song_name, artist_name, k=10):
 
 
 if __name__ == "__main__":
-    test_recommendations(CLEANED_DATA_PATH, "Hips Don't Lie" , "Shakira", k=10)
+    test_recommendations(
+        CLEANED_DATA_PATH,
+        "Hips Don't Lie",
+        "Shakira",
+        k=10
+    )

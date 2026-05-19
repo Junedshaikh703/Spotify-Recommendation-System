@@ -6,5 +6,3 @@ venv/
 kaggle.json
 data/*.csv
 data/*.npz
-/data
-/transformer.joblib
