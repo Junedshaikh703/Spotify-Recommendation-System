@@ -1,6 +1,10 @@
 import streamlit as st
 from content_based_filtering import recommend
+from collaborative_filtering import collaborative_recommendation
+
 from scipy.sparse import load_npz
+from numpy import load
+
 import pandas as pd
 
 
@@ -9,7 +13,7 @@ import pandas as pd
 # ---------------------------------------------------
 
 st.set_page_config(
-    page_title="Spotify Collaborative Filtering",
+    page_title="Spotify Recommendation System",
     page_icon="🎵",
     layout="wide"
 )
@@ -61,27 +65,55 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# LOAD DATA
+# LOAD CONTENT BASED DATA
 # ---------------------------------------------------
 
-transformed_data_path = "data/transformed_data.npz"
-cleaned_data_path = "data/cleaned_data.csv"
+transformed_data_path = "data/transformed/transformed_data.npz"
+cleaned_data_path = "data/cleaned/cleaned_data.csv"
 
 data = pd.read_csv(cleaned_data_path)
 
 transformed_data = load_npz(transformed_data_path)
 
 # ---------------------------------------------------
+# LOAD COLLABORATIVE FILTERING DATA
+# ---------------------------------------------------
+
+filtered_data_path = "data/cleaned/collab_filtered_data.csv"
+interaction_matrix_path = "data/transformed/interaction_matrix.npz"
+track_ids_path = "data/transformed/track_ids.npy"
+
+filtered_data = pd.read_csv(filtered_data_path)
+
+interaction_matrix = load_npz(
+    interaction_matrix_path
+)
+
+track_ids = load(
+    track_ids_path,
+    allow_pickle=True
+)
+
+# ---------------------------------------------------
 # HEADER
 # ---------------------------------------------------
 
 st.markdown(
-    '<div class="big-title">🎧 Spotify Collaborative Filtering Recommender</div>',
+    '''
+    <div class="big-title">
+    🎧 Spotify Recommendation System
+    </div>
+    ''',
     unsafe_allow_html=True
 )
 
 st.markdown(
-    '<div class="sub-title">Discover songs similar to your favorite tracks using AI-powered recommendation systems 🚀</div>',
+    '''
+    <div class="sub-title">
+    Discover songs similar to your favorite tracks
+    using AI-powered recommendation systems 🚀
+    </div>
+    ''',
     unsafe_allow_html=True
 )
 
@@ -91,8 +123,25 @@ st.markdown(
 
 st.sidebar.title("🎵 Recommendation Settings")
 
+# recommendation type
+filtering_type = st.sidebar.selectbox(
+    "Recommendation Technique",
+    [
+        "Content-Based Filtering",
+        "Collaborative Filtering"
+    ]
+)
+
+# dataset selection
+if filtering_type == "Content-Based Filtering":
+    current_data = data
+else:
+    current_data = filtered_data
+
 # unique songs
-song_list = sorted(data["name"].dropna().unique())
+song_list = sorted(
+    current_data["name"].dropna().unique()
+)
 
 # song dropdown
 selected_song = st.sidebar.selectbox(
@@ -100,10 +149,10 @@ selected_song = st.sidebar.selectbox(
     song_list
 )
 
-# artist dropdown based on song
+# artist dropdown
 artist_list = sorted(
-    data.loc[
-        data["name"] == selected_song,
+    current_data.loc[
+        current_data["name"] == selected_song,
         "artist"
     ].dropna().unique()
 )
@@ -134,19 +183,47 @@ recommend_button = st.sidebar.button(
 if recommend_button:
 
     st.success(
-        f"Showing recommendations for '{selected_song.title()}' by '{selected_artist.title()}'"
+        f"""
+        Showing recommendations for
+        '{selected_song.title()}'
+        by
+        '{selected_artist.title()}'
+        """
     )
 
-    # recommendations
-    recommendations = recommend(
-        selected_song,
-        selected_artist,
-        data,
-        transformed_data,
-        k
-    )
+    # ---------------------------------------------------
+    # CONTENT BASED FILTERING
+    # ---------------------------------------------------
 
-    # display songs
+    if filtering_type == "Content-Based Filtering":
+
+        recommendations = recommend(
+            selected_song,
+            selected_artist,
+            data,
+            transformed_data,
+            k
+        )
+
+    # ---------------------------------------------------
+    # COLLABORATIVE FILTERING
+    # ---------------------------------------------------
+
+    else:
+
+        recommendations = collaborative_recommendation(
+            song_name=selected_song,
+            artist_name=selected_artist,
+            track_ids=track_ids,
+            songs_data=filtered_data,
+            interaction_matrix=interaction_matrix,
+            k=k
+        )
+
+    # ---------------------------------------------------
+    # DISPLAY RECOMMENDATIONS
+    # ---------------------------------------------------
+
     for ind, recommendation in recommendations.iterrows():
 
         song_name = recommendation['name'].title()
@@ -165,7 +242,9 @@ if recommend_button:
             )
 
             # audio preview
-            st.audio(recommendation['spotify_preview_url'])
+            st.audio(
+                recommendation['spotify_preview_url']
+            )
 
 # ---------------------------------------------------
 # FOOTER
@@ -174,5 +253,12 @@ if recommend_button:
 st.write("---")
 
 st.caption(
-    "Built with ❤️ using Streamlit, Content-Based Filtering, TF-IDF, and Cosine Similarity"
+    """
+    Built with ❤️ using Streamlit,
+    Content-Based Filtering,
+    Collaborative Filtering,
+    TF-IDF,
+    Cosine Similarity,
+    and Recommendation Systems
+    """
 )
