@@ -22,3 +22,14 @@ stages:
     outs:
       - data/transformed/transformed_data.npz
       - artifacts/transformer.joblib
+
+  interaction_data:
+    cmd: python collaborative_filtering.py
+    deps:
+      - data/raw/User Listening History.csv
+      - collaborative_filtering.py
+      - data/cleaned/cleaned_data.csv
+    outs:
+      - data/transformed/track_ids.npy
+      - data/cleaned/collab_filtered_data.csv
+      - data/transformed/interaction_matrix.npz
