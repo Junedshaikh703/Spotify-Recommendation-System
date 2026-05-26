@@ -33,3 +33,13 @@ stages:
       - data/transformed/track_ids.npy
       - data/cleaned/collab_filtered_data.csv
       - data/transformed/interaction_matrix.npz
+
+  transformed_filtered_data:
+    cmd: python transform_hybrid_data.py
+
+    deps:
+      - transform_hybrid_data.py
+      - data/cleaned/collab_filtered_data.csv
+
+    outs:
+      - data/transformed/transformed_hybrid_data.npz

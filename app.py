@@ -1,6 +1,8 @@
 import streamlit as st
+
 from content_based_filtering import recommend
 from collaborative_filtering import collaborative_recommendation
+from hybrid_recommendation import HybridRecommenderSystem
 
 from scipy.sparse import load_npz
 from numpy import load
@@ -35,7 +37,7 @@ st.markdown("""
 }
 
 .big-title {
-    font-size: 3rem;
+    font-size: 3.2rem;
     font-weight: bold;
     color: #1DB954;
     text-align: center;
@@ -55,10 +57,19 @@ st.markdown("""
     border-radius: 15px;
     margin-bottom: 20px;
     border: 1px solid #282828;
+    transition: 0.3s;
 }
 
 .song-card:hover {
     border: 1px solid #1DB954;
+    transform: scale(1.01);
+}
+
+.section-title {
+    color: #1DB954;
+    font-size: 1.6rem;
+    margin-top: 10px;
+    margin-bottom: 20px;
 }
 
 </style>
@@ -70,28 +81,49 @@ st.markdown("""
 
 transformed_data_path = "data/transformed/transformed_data.npz"
 cleaned_data_path = "data/cleaned/cleaned_data.csv"
+track_ids_path = "data/transformed/track_ids.npy"
 
 data = pd.read_csv(cleaned_data_path)
 
-transformed_data = load_npz(transformed_data_path)
+transformed_data = load_npz(
+    transformed_data_path
+)
 
 # ---------------------------------------------------
 # LOAD COLLABORATIVE FILTERING DATA
 # ---------------------------------------------------
 
 filtered_data_path = "data/cleaned/collab_filtered_data.csv"
-interaction_matrix_path = "data/transformed/interaction_matrix.npz"
-track_ids_path = "data/transformed/track_ids.npy"
 
-filtered_data = pd.read_csv(filtered_data_path)
+interaction_matrix_path = (
+    "data/transformed/interaction_matrix.npz"
+)
+
+filtered_data = pd.read_csv(
+    filtered_data_path
+)
 
 interaction_matrix = load_npz(
     interaction_matrix_path
 )
 
+
 track_ids = load(
     track_ids_path,
     allow_pickle=True
+)
+
+
+# ---------------------------------------------------
+# LOAD HYBRID DATA
+# ---------------------------------------------------
+
+transformed_hybrid_data_path = (
+    "data/transformed/transformed_hybrid_data.npz"
+)
+
+transformed_hybrid_data = load_npz(
+    transformed_hybrid_data_path
 )
 
 # ---------------------------------------------------
@@ -99,21 +131,21 @@ track_ids = load(
 # ---------------------------------------------------
 
 st.markdown(
-    '''
+    """
     <div class="big-title">
     🎧 Spotify Recommendation System
     </div>
-    ''',
+    """,
     unsafe_allow_html=True
 )
 
 st.markdown(
-    '''
+    """
     <div class="sub-title">
-    Discover songs similar to your favorite tracks
-    using AI-powered recommendation systems 🚀
+    Discover songs using Content-Based,
+    Collaborative and Hybrid Recommendation Systems 🚀
     </div>
-    ''',
+    """,
     unsafe_allow_html=True
 )
 
@@ -121,26 +153,32 @@ st.markdown(
 # SIDEBAR
 # ---------------------------------------------------
 
-st.sidebar.title("🎵 Recommendation Settings")
+st.sidebar.title(
+    "🎵 Recommendation Settings"
+)
 
 # recommendation type
 filtering_type = st.sidebar.selectbox(
     "Recommendation Technique",
     [
         "Content-Based Filtering",
-        "Collaborative Filtering"
+        "Collaborative Filtering",
+        "Hybrid Recommendation System"
     ]
 )
 
 # dataset selection
 if filtering_type == "Content-Based Filtering":
     current_data = data
+
 else:
     current_data = filtered_data
 
 # unique songs
 song_list = sorted(
-    current_data["name"].dropna().unique()
+    current_data["name"]
+    .dropna()
+    .unique()
 )
 
 # song dropdown
@@ -154,7 +192,9 @@ artist_list = sorted(
     current_data.loc[
         current_data["name"] == selected_song,
         "artist"
-    ].dropna().unique()
+    ]
+    .dropna()
+    .unique()
 )
 
 selected_artist = st.sidebar.selectbox(
@@ -171,6 +211,35 @@ k = st.sidebar.slider(
     step=1
 )
 
+# hybrid weights
+if filtering_type == "Hybrid Recommendation System":
+
+    st.sidebar.markdown("---")
+
+    st.sidebar.subheader(
+        "⚖️ Hybrid Weights"
+    )
+
+    weight_content = st.sidebar.slider(
+        "Content-Based Weight",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.3,
+        step=0.1
+    )
+
+    weight_collaborative = round(
+        1 - weight_content,
+        1
+    )
+
+    st.sidebar.info(
+        f"""
+        Collaborative Weight:
+        {weight_collaborative}
+        """
+    )
+
 # recommendation button
 recommend_button = st.sidebar.button(
     "🎧 Generate Recommendations"
@@ -182,13 +251,16 @@ recommend_button = st.sidebar.button(
 
 if recommend_button:
 
-    st.success(
+    st.markdown(
         f"""
-        Showing recommendations for
+        <div class="section-title">
+        Recommendations for
         '{selected_song.title()}'
         by
         '{selected_artist.title()}'
-        """
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
     # ---------------------------------------------------
@@ -209,7 +281,7 @@ if recommend_button:
     # COLLABORATIVE FILTERING
     # ---------------------------------------------------
 
-    else:
+    elif filtering_type == "Collaborative Filtering":
 
         recommendations = collaborative_recommendation(
             song_name=selected_song,
@@ -221,13 +293,42 @@ if recommend_button:
         )
 
     # ---------------------------------------------------
+    # HYBRID FILTERING
+    # ---------------------------------------------------
+
+    else:
+
+        hybrid_recommender = (
+            HybridRecommenderSystem(
+                song_name=selected_song,
+                artist_name=selected_artist,
+                number_of_recommendations=k,
+                weight_content_based=weight_content,
+                weight_collaborative=weight_collaborative,
+                songs_data=filtered_data,
+                transformed_matrix=transformed_hybrid_data,
+                interaction_matrix=interaction_matrix
+            )
+        )
+
+        recommendations = (
+            hybrid_recommender
+            .give_recommendations()
+        )
+
+    # ---------------------------------------------------
     # DISPLAY RECOMMENDATIONS
     # ---------------------------------------------------
 
     for ind, recommendation in recommendations.iterrows():
 
-        song_name = recommendation['name'].title()
-        artist_name = recommendation['artist'].title()
+        song_name = recommendation[
+            "name"
+        ].title()
+
+        artist_name = recommendation[
+            "artist"
+        ].title()
 
         with st.container():
 
@@ -243,7 +344,9 @@ if recommend_button:
 
             # audio preview
             st.audio(
-                recommendation['spotify_preview_url']
+                recommendation[
+                    "spotify_preview_url"
+                ]
             )
 
 # ---------------------------------------------------
@@ -257,8 +360,10 @@ st.caption(
     Built with ❤️ using Streamlit,
     Content-Based Filtering,
     Collaborative Filtering,
+    Hybrid Recommendation Systems,
     TF-IDF,
+    Sparse Matrices,
     Cosine Similarity,
-    and Recommendation Systems
+    and Machine Learning
     """
 )

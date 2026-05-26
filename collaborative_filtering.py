@@ -18,17 +18,22 @@ def filter_songs_data(songs_data: pd.DataFrame, track_ids: list, save_df_path: s
     """
     Filter the songs data for the given track ids
     """
-    # filter data based on track_ids
-    filtered_data = songs_data[songs_data["track_id"].isin(track_ids)]
-    # sort the data by track id
-    filtered_data.sort_values(by="track_id", inplace=True)
-    # rest index
+
+    # filter data while preserving track_ids order
+    filtered_data = (
+        songs_data
+        .set_index("track_id")
+        .loc[track_ids]
+        .reset_index()
+    )
+
+    # reset index
     filtered_data.reset_index(drop=True, inplace=True)
+
     # save the data
     save_pandas_data_to_csv(filtered_data, save_df_path)
     
     return filtered_data
-
 
 def save_pandas_data_to_csv(data: pd.DataFrame, file_path: str) -> None:
     """
@@ -142,14 +147,27 @@ def collaborative_recommendation(song_name,artist_name,track_ids,songs_data,inte
 def main():
     # load the history data
     user_data = dd.read_csv(user_listening_history_data_path)
+    songs_data = pd.read_csv(songs_data_path)
     
     # get the unique track ids
     unique_track_ids = user_data.loc[:,"track_id"].unique().compute()
     unique_track_ids = unique_track_ids.tolist()
+
+    # keep only common track ids
+    valid_track_ids = [
+                    track_id
+                    for track_id in unique_track_ids
+                    if track_id in songs_data ["track_id"].values
+                  ]
     
     # filter the songs data
-    songs_data = pd.read_csv(songs_data_path)
-    filter_songs_data(songs_data, unique_track_ids, filtered_data_save_path)
+    filter_songs_data(songs_data, valid_track_ids, filtered_data_save_path)
+
+    # keep only aligned interaction data
+    user_data = user_data[
+                        user_data["track_id"]
+                        .isin(valid_track_ids)
+                     ]
     
     # create the interaction matrix
     create_interaction_matrix(user_data, track_ids_save_path, interaction_matrix_save_path)
